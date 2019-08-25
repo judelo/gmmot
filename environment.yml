@@ -1,0 +1,11 @@
+name: practical sessions
+channels:
+  - conda-forge
+dependencies:
+  - numpy 
+  - scipy
+  - matplotlib
+  - scikit-learn
+  - pillow
+  - pot == 0.5.1
+  - ipywidgets
