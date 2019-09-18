@@ -5,6 +5,7 @@ import scipy.stats as sps
 import scipy.linalg as spl
 
 def densite_theorique(mu,sigma,alpha,x):
+    # compute the 1D GMM density with parameters (mu,sigma)  at x 
     K=mu.shape[0]
     y=0
     #y=np.zeros(len(x))
@@ -13,7 +14,9 @@ def densite_theorique(mu,sigma,alpha,x):
     return y
 
 def densite_theorique2d(mu,Sigma,alpha,x):
-    K=mu.shape[0]
+    # compute the 2D GMM density with parameters (mu, Sigma) at x
+    K = mu.shape[0]
+    alpha = alpha.reshape(1,K)
     y=0
     for j in range(K):
         y+=alpha[0,j]*sps.multivariate_normal.pdf(x,mean=mu[j,:],cov=Sigma[j,:,:])
@@ -70,12 +73,13 @@ def GW2cost(mu0,mu1,S0,S1):       # return the distance matrix M of size K0 x K1
     return M
 
 def GW2_map(pi0,pi1,mu0,mu1,S0,S1,wstar,x):
+    # return the GW2 maps between two GMM on the 1D grid x  
     n,K0,K1    = x.shape[0],mu0.shape[0],mu1.shape[0]
     T          = np.zeros((K0,K1,n))     # each Tkl = T[k,l,:] is of dimension n and correspond to the W2-map between component k of mu0 and component l of mu1
     tmpmean    = np.zeros(n)
     weightmean = np.zeros(n)
-    Tmean      = np.zeros((n,n))     # averaged map
-    Tmap       = np.zeros((n,n))     # display of the multivalued map
+    Tmean      = np.zeros((n,n))     # averaged map on a grid 
+    Tmap       = np.zeros((n,n))     # multivalued map on a grid
     
     for k in range(K0):
         for l in range(K1):
