@@ -1,2 +1,8 @@
 
 .DS_Store
+
+*.pyc
+
+python/.ipynb_checkpoints/GMM_OT_color_transfer-checkpoint.ipynb
+
+python/.ipynb_checkpoints/GMM_OT_introduction-checkpoint.ipynb
