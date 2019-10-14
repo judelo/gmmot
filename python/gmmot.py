@@ -1,20 +1,24 @@
 import numpy as np
 import ot
-import scipy.signal as scs
 import scipy.stats as sps
 import scipy.linalg as spl
 
+
+###############################
+#### compute GMM densities
+###############################
+
 def densite_theorique(mu,sigma,alpha,x):
-    # compute the 1D GMM density with parameters (mu,sigma)  at x 
+    # compute the 1D GMM density with parameters (mu,sigma) and weights alpha  at x 
     K=mu.shape[0]
     y=0
     #y=np.zeros(len(x))
     for j in range(K):
-        y+=alpha[j]*sps.norm.pdf(x,loc=mu[j],scale=sigma[j])
-    return y
+        y+=alpha[j]*sps.norm.pdf(x,loc=mu[j,:],scale=sigma[j,:,:])
+    return y.reshape(x.shape)
 
 def densite_theorique2d(mu,Sigma,alpha,x):
-    # compute the 2D GMM density with parameters (mu, Sigma) at x
+    # compute the 2D GMM density with parameters (mu, Sigma) and weights alpha at x
     K = mu.shape[0]
     alpha = alpha.reshape(1,K)
     y=0
@@ -22,20 +26,24 @@ def densite_theorique2d(mu,Sigma,alpha,x):
         y+=alpha[0,j]*sps.multivariate_normal.pdf(x,mean=mu[j,:],cov=Sigma[j,:,:])
     return y
 
+###############################
+### Optimal Transport between Gaussians (quadratic Wasserstein)
+###############################
+
 def GaussianW2(m0,m1,Sigma0,Sigma1):
-    # quadratic Wasserstein distance between two Gaussians
+    # compute the quadratic Wasserstein distance between two Gaussians with means m0 and m1 and covariances Sigma0 and Sigma1
     Sigma00  = spl.sqrtm(Sigma0)
     Sigma010 = spl.sqrtm(Sigma00@Sigma1@Sigma00)
     d        = np.linalg.norm(m0-m1)**2+np.trace(Sigma0+Sigma1-2*Sigma010)
     return d
 
 def GaussianMap(m0,m1,Sigma0,Sigma1,x):
-    # Compute the OT map between two Gaussians
+    # Compute the OT map (evaluated at x) between two Gaussians with means m0 and m1 and covariances Sigma0 and Sigma1 
     # m0 and m1 must be 2D arrays of size 1xd
     # Sigma0 and Sigma1 must be 2D arrays of size dxd
     # x can be a matrix of size n x d,
     # each column of x is a vector to which the function is applied
-    d = m0.shape[0]
+    d = Sigma0.shape[0]
     m0 = m0.reshape(1,d)
     m1 = m1.reshape(1,d)
     Sigma0 = Sigma0.reshape(d,d)
@@ -44,9 +52,39 @@ def GaussianMap(m0,m1,Sigma0,Sigma1,x):
     Tx        = m1+(x-m0)@Sigma
     return Tx
 
+def GaussianBarycenterW2(mu,Sigma,alpha,N):
+    # Compute the W2 barycenter between several Gaussians
+    # mu has size Kxd, with K the number of Gaussians and d the space dimension
+    # Sigma has size Kxdxd
+    K        = mu.shape[0]  # number of Gaussians
+    d        = mu.shape[1]  # size of the space
+    Sigman   = np.eye(d,d)
+    mun      = np.zeros((1,d))
+    cost = 0
+    
+    for n in range(N):
+        Sigmandemi       = spl.sqrtm(Sigman)
+        T = np.zeros((d,d))
+        for j in range(K):
+            T+= alpha[j]*spl.sqrtm(Sigmandemi@Sigma[j,:,:]@Sigmandemi)
+        Sigman  = T
+    
+    for j in range(K):
+        mun+= alpha[j]*mu[j,:]
+    
+    for j in range(K):
+        cost+= alpha[j]*GaussianW2(mu[j,:],mun,Sigma[j,:,:],Sigman)
+
+    return mun,Sigman,cost       # return the Gaussian Barycenter (mun,Sigman) and the total cost
+
+
+###############################
+###### GW2 between GMM
+###############################
+
 
 def GW2(pi0,pi1,mu0,mu1,S0,S1):
-    # return the GMMOT discrete map and the GW2 distance
+    # return the GW2 discrete map and the GW2 distance between two GMM
     K0 = mu0.shape[0]
     K1 = mu1.shape[0]
     d  = mu0.shape[1]
@@ -84,7 +122,7 @@ def GW2_map(pi0,pi1,mu0,mu1,S0,S1,wstar,x):
     for k in range(K0):
         for l in range(K1):
             if wstar[k,l]!=0:
-                T[k,l,:] = GaussianMap(mu0[k],mu1[l],S0[k],S1[l],x).reshape(n,)
+                T[k,l,:] = GaussianMap(mu0[k,:],mu1[l,:],S0[k,],S1[l],x).reshape(n,)
                 for i in range(n):
                     Ti             = int(max(min(T[k,l,i],1),0)*99)
                     Tmap[i,Ti]    += wstar[k,l]*sps.norm.pdf(x[i],loc=mu0[k],scale=S0[k])
@@ -96,6 +134,20 @@ def GW2_map(pi0,pi1,mu0,mu1,S0,S1,wstar,x):
         Tmean[i,tmpmean[i]] = weightmean[i]
     
     return Tmap,Tmean
+
+
+
+
+
+
+
+
+
+
+####################################################
+#### for color transfer or color barycenters   #####
+#### guided_filter is used for post-processing #####
+####################################################
 
 
 def average_filter(u,r):
