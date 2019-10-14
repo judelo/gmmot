@@ -1,2 +1,5 @@
 
 .DS_Store
+python/__pycache__/*
+python/.ipynb_checkpoints/*
+.gitignore~
