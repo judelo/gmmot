@@ -2,6 +2,33 @@ import numpy as np
 import ot
 import scipy.stats as sps
 import scipy.linalg as spl
+from scipy.optimize import linprog
+import matplotlib.pyplot as plt
+
+
+###############################
+#### display GMM
+###############################
+
+
+def display_gmm(gmm,n=50,ax=0,bx=1,ay=0,by=1,cmap='viridis',axis=None):
+    
+    if axis is None:
+        axis = plt.gca()
+        
+    [K,pi,mu,S] = gmm
+    
+    x = np.linspace(ax, bx,num=n)
+    y = np.linspace(ay, by,num=n)
+    X, Y = np.meshgrid(x, y)
+    XX = np.array([X.ravel(), Y.ravel()]).T
+    Z = densite_theorique2d(mu,S,pi,XX)
+    Z = Z.reshape(X.shape)
+    plt.axis('equal')
+    return axis.contour(X, Y, Z,8,cmap=cmap)    
+
+
+
 
 
 ###############################
@@ -136,7 +163,93 @@ def GW2_map(pi0,pi1,mu0,mu1,S0,S1,wstar,x):
     return Tmap,Tmean
 
 
+#####################################################
+##### Multimarginal problem
+#####################################################
 
+
+def create_cost_matrix_from_gmm(gmm,alpha,N=10):
+    """
+    create the cost matrix for the multimarginal problem between all GMM
+    create the barycenters (mun,Sn) betweenn all Gaussian components 
+    """
+    
+    nMarginal       = len(alpha)               # number of marginals
+    d               = gmm[0][2].shape[1]       # space dimension
+    tup = ();
+    for k in range(nMarginal):
+        K  = gmm[k][0]
+        tup+=(K,)        
+    C               = np.zeros(tup)
+    mun             = np.zeros(tup+(d,))
+    Sn             = np.zeros(tup+(d,d))
+        
+    it = np.nditer(C,["multi_index"])
+    while not it.finished:
+        tup = it.multi_index        
+        mu = np.zeros((nMarginal,d))
+        Sigma = np.zeros((nMarginal,d,d))
+        
+        for k in range(nMarginal):
+            mu[k,:]      = gmm[k][2][tup[k]]
+            Sigma[k,:,:] = gmm[k][3][tup[k]]
+            
+        mu    = np.array(mu)    
+        Sigma = np.array(Sigma)    
+        [mun[tup],Sn[tup],cost] = GaussianBarycenterW2(mu,Sigma,alpha,N)
+        
+        C[tup] = cost
+        
+        it.iternext()
+    
+    return C,mun,Sn  
+
+def solveMMOT(pi, costMatrix, epsilon = 1e-10):
+    """ Author : Alexandre Saint-Dizier
+    
+    Solveur of the MultiMargnal OT problem, using linprog
+
+    Input :
+     - pi : list(array) -> weights of the different distributions
+     - C : array(d1,...dp) -> cost matrix
+     - epsilon : smallest value considered to be positive
+
+    Output :
+     - gamma : list of combinaison with positive weight
+     - gammaWeights : corresponding weights
+    """
+
+    nMarginal = len(pi);
+    nPoints = costMatrix.shape;
+
+    nConstraints = 0; nParameters = 1;
+    for ni in nPoints:
+        nConstraints += ni; nParameters *= ni
+
+    index = 0;
+    A = np.zeros((nConstraints, nParameters)); b = np.zeros(nConstraints)
+    for i in range(nMarginal):
+        ni = nPoints[i];
+        b[index:index+ni] = pi[i];
+        for k in range(ni):
+            Ap = np.zeros(costMatrix.shape);
+            tup = ();
+            for j in range(nMarginal):
+                if j==i:
+                    tup+= (k,)
+                else:
+                    tup+=(slice(0,nPoints[j]),)
+            Ap[tup] = 1;
+            A[index+k,:]=Ap.flatten();
+        index += ni
+    A = A.tolist(); b = b.tolist();
+    C = costMatrix.flatten().tolist()
+
+    res = linprog(C, A_eq=A, b_eq =b) #Solve inf <C,X> with constraints AX=b
+    gammaWeights = res.x;
+    gammaWeights = gammaWeights.reshape(costMatrix.shape)
+   
+    return gammaWeights
 
 
 
