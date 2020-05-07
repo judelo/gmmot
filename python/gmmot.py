@@ -5,6 +5,9 @@ import scipy.linalg as spl
 from scipy.optimize import linprog
 import matplotlib.pyplot as plt
 
+#################
+### author : Julie Delon
+#################
 
 ###############################
 #### display GMM
@@ -35,13 +38,13 @@ def display_gmm(gmm,n=50,ax=0,bx=1,ay=0,by=1,cmap='viridis',axis=None):
 #### compute GMM densities
 ###############################
 
-def densite_theorique(mu,sigma,alpha,x):
-    # compute the 1D GMM density with parameters (mu,sigma) and weights alpha  at x 
+def densite_theorique(mu,var,alpha,x):
+    # compute the 1D GMM density with parameters (mu,var) and weights alpha  at x 
     K=mu.shape[0]
     y=0
     #y=np.zeros(len(x))
     for j in range(K):
-        y+=alpha[j]*sps.norm.pdf(x,loc=mu[j,:],scale=sigma[j,:,:])
+        y+=alpha[j]*sps.norm.pdf(x,loc=mu[j,:],scale=np.sqrt(var[j,:,:]))
     return y.reshape(x.shape)
 
 def densite_theorique2d(mu,Sigma,alpha,x):
@@ -137,7 +140,7 @@ def GW2cost(mu0,mu1,S0,S1):       # return the distance matrix M of size K0 x K1
             M[k,l]  = GaussianW2(mu0[k,:],mu1[l,:],S0[k,:,:],S1[l,:,:])
     return M
 
-def GW2_map(pi0,pi1,mu0,mu1,S0,S1,wstar,x):
+def GW2_map(pi0,pi1,mu0,mu1,S0,S1,wstar,x):      
     # return the GW2 maps between two GMM on the 1D grid x  
     n,K0,K1    = x.shape[0],mu0.shape[0],mu1.shape[0]
     T          = np.zeros((K0,K1,n))     # each Tkl = T[k,l,:] is of dimension n and correspond to the W2-map between component k of mu0 and component l of mu1
@@ -152,9 +155,9 @@ def GW2_map(pi0,pi1,mu0,mu1,S0,S1,wstar,x):
                 T[k,l,:] = GaussianMap(mu0[k,:],mu1[l,:],S0[k,],S1[l],x).reshape(n,)
                 for i in range(n):
                     Ti             = int(max(min(T[k,l,i],1),0)*99)
-                    Tmap[i,Ti]    += wstar[k,l]*sps.norm.pdf(x[i],loc=mu0[k],scale=S0[k])
-                    tmpmean[i]    += wstar[k,l]*sps.norm.pdf(x[i],loc=mu0[k],scale=S0[k])/densite_theorique(mu0,S0,pi0,x[i])*T[k,l,i]
-                    weightmean[i] += wstar[k,l]*sps.norm.pdf(x[i],loc=mu0[k],scale=S0[k])
+                    Tmap[i,Ti]    += wstar[k,l]*sps.norm.pdf(x[i],loc=mu0[k],scale=np.sqrt(S0[k]))
+                    tmpmean[i]    += wstar[k,l]*sps.norm.pdf(x[i],loc=mu0[k],scale=np.sqrt(S0[k]))/densite_theorique(mu0,S0,pi0,x[i])*T[k,l,i]
+                    weightmean[i] += wstar[k,l]*sps.norm.pdf(x[i],loc=mu0[k],scale=np.sqrt(S0[k]))
 
     tmpmean = np.uint(np.maximum(np.minimum(tmpmean,1),0)*99)
     for i in range(n):
